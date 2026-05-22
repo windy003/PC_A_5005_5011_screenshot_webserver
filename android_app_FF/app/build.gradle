@@ -13,7 +13,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "2026/3/8-1"
+        versionName "2026/5/22-1"
     }
 
     buildTypes {

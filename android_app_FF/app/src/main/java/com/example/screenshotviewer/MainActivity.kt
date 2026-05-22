@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rememberPasswordCheckbox: CheckBox
     private lateinit var autoLoginCheckbox: CheckBox
     private lateinit var connectButton: Button
+    private lateinit var sortButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var imagesRecyclerView: RecyclerView
     private lateinit var imageAdapter: ImageAdapter
@@ -47,6 +48,7 @@ class MainActivity : AppCompatActivity() {
 
     private var baseUrl = ""
     private var currentImages = mutableListOf<FileItem>()
+    private var sortDescending = true
 
     private val STORAGE_PERMISSION_CODE = 100
     private val PREFS_NAME = "ScreenshotViewerPrefs"
@@ -81,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         rememberPasswordCheckbox = findViewById(R.id.rememberPasswordCheckbox)
         autoLoginCheckbox = findViewById(R.id.autoLoginCheckbox)
         connectButton = findViewById(R.id.connectButton)
+        sortButton = findViewById(R.id.sortButton)
         progressBar = findViewById(R.id.progressBar)
         imagesRecyclerView = findViewById(R.id.imagesRecyclerView)
     }
@@ -160,6 +163,24 @@ class MainActivity : AppCompatActivity() {
             baseUrl = url.removeSuffix("/")
             loginAndLoadImages(username, password)
         }
+
+        sortButton.setOnClickListener {
+            sortDescending = !sortDescending
+            applySort()
+            sortButton.text = if (sortDescending) "排序：从新到旧" else "排序：从旧到新"
+        }
+    }
+
+    private fun applySort() {
+        val comparator = compareBy<FileItem> { it.name }
+        val sorted = if (sortDescending) {
+            currentImages.sortedWith(comparator.reversed())
+        } else {
+            currentImages.sortedWith(comparator)
+        }
+        currentImages.clear()
+        currentImages.addAll(sorted)
+        imageAdapter.updateImages(currentImages)
     }
 
     private fun loginAndLoadImages(username: String, password: String) {
@@ -205,7 +226,9 @@ class MainActivity : AppCompatActivity() {
                     withContext(Dispatchers.Main) {
                         currentImages.clear()
                         currentImages.addAll(images)
-                        imageAdapter.updateImages(currentImages)
+                        applySort()
+                        sortButton.visibility = if (currentImages.isNotEmpty()) View.VISIBLE else View.GONE
+                        sortButton.text = if (sortDescending) "排序：从新到旧" else "排序：从旧到新"
                         Toast.makeText(
                             this@MainActivity,
                             "找到 ${images.size} 张图片",
