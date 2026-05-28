@@ -151,6 +151,7 @@ def login():
             return redirect(next_page or url_for('index'))
         else:
             flash('用户名或密码错误', 'error')
+            return render_template('login.html'), 401
 
     return render_template('login.html')
 
