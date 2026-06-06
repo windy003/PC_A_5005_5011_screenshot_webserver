@@ -24,13 +24,13 @@ android {
 
     flavorDimensions "version"
     productFlavors {
-        one_FP {
+        one_FP_ {
             dimension "version"
             applicationIdSuffix ".one"
             versionNameSuffix "-one"
             resValue "string", "app_name", "1-FP-Screenshot Viewer"
         }
-        two_FPC {
+        two_FPC_ {
             dimension "version"
             applicationIdSuffix ".two"
             versionNameSuffix "-two"
