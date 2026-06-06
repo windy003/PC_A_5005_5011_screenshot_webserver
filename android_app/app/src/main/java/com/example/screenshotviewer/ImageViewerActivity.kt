@@ -52,7 +52,8 @@ class ImageViewerActivity : AppCompatActivity() {
 
 
     private lateinit var imageViewPager: ViewPager2
-    private lateinit var saveImageButton: Button
+    private lateinit var saveToPButton: Button
+    private lateinit var saveToFFButton: Button
     private lateinit var deleteButton: Button
     private lateinit var undoButton: Button
     private lateinit var prevButton: Button
@@ -80,11 +81,22 @@ class ImageViewerActivity : AppCompatActivity() {
     private data class OperationItem(
         val type: OperationType,
         val image: FileItem,
-        val position: Int
+        val position: Int,
+        val saveFolder: String? = null
     )
     private val operationHistory = ArrayDeque<OperationItem>()
 
     private val STORAGE_PERMISSION_CODE = 100
+
+    // 申请权限时记录用户点击的目标目录，授权后继续保存
+    private var pendingSaveFolder: String? = null
+
+    companion object {
+        // 保存到P -> DCIM/Screenshots
+        private const val FOLDER_P = "Screenshots"
+        // 保存到FF -> DCIM/FF_Screenshots
+        private const val FOLDER_FF = "FF_Screenshots"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,7 +125,8 @@ class ImageViewerActivity : AppCompatActivity() {
 
     private fun initViews() {
         imageViewPager = findViewById(R.id.imageViewPager)
-        saveImageButton = findViewById(R.id.saveImageButton)
+        saveToPButton = findViewById(R.id.saveToPButton)
+        saveToFFButton = findViewById(R.id.saveToFFButton)
         deleteButton = findViewById(R.id.deleteButton)
         undoButton = findViewById(R.id.undoButton)
         prevButton = findViewById(R.id.prevButton)
@@ -254,18 +267,12 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        saveImageButton.setOnClickListener {
-            Toast.makeText(this, "保存按钮点击 - 位置:$currentPosition 列表大小:${images.size}", Toast.LENGTH_SHORT).show()
-            if (checkStoragePermission()) {
-                val currentImage = getCurrentImage()
-                if (currentImage != null) {
-                    markAsSaved(currentImage)
-                } else {
-                    Toast.makeText(this, "错误：无法获取当前图片", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                requestStoragePermission()
-            }
+        saveToPButton.setOnClickListener {
+            handleSaveClick(FOLDER_P)
+        }
+
+        saveToFFButton.setOnClickListener {
+            handleSaveClick(FOLDER_FF)
         }
 
         deleteButton.setOnClickListener {
@@ -303,6 +310,22 @@ class ImageViewerActivity : AppCompatActivity() {
         }
     }
 
+    // 点击保存按钮：检查权限后将当前图片标记为保存到指定目录
+    private fun handleSaveClick(saveFolder: String) {
+        if (checkStoragePermission()) {
+            val currentImage = getCurrentImage()
+            if (currentImage != null) {
+                markAsSaved(currentImage, saveFolder)
+            } else {
+                Toast.makeText(this, "错误：无法获取当前图片", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            // 记录目标目录，授权后继续保存
+            pendingSaveFolder = saveFolder
+            requestStoragePermission()
+        }
+    }
+
     private fun updateImageInfo() {
         // 更新页码显示
         pageCountTextView.text = "${currentPosition + 1} / ${images.size}"
@@ -332,54 +355,11 @@ class ImageViewerActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveImageToLocal() {
-        lifecycleScope.launch {
-            try {
-                val currentImage = getCurrentImage()
-                if (currentImage == null) {
-                    Toast.makeText(this@ImageViewerActivity, "无法获取当前图片", Toast.LENGTH_SHORT).show()
-                    return@launch
-                }
-
-                saveImageButton.isEnabled = false
-                saveImageButton.text = "保存中..."
-
-                val success = downloadImageToLocal(currentImage)
-                if (success) {
-                    Toast.makeText(
-                        this@ImageViewerActivity,
-                        "已保存到 DCIM/Screenshots/${currentImage.name}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    // 保存成功后自动删除服务器上的图片
-                    deleteImageAfterSave(currentImage)
-                } else {
-                    Toast.makeText(
-                        this@ImageViewerActivity,
-                        "保存失败",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    saveImageButton.isEnabled = true
-                    saveImageButton.text = "保存到本地"
-                }
-            } catch (e: Exception) {
-                Toast.makeText(
-                    this@ImageViewerActivity,
-                    "保存失败: ${e.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-                saveImageButton.isEnabled = true
-                saveImageButton.text = "保存到本地"
-            }
-        }
-    }
-
     private fun getCurrentImage(): FileItem? {
         return if (currentPosition >= 0 && currentPosition < images.size) images[currentPosition] else null
     }
 
-    private suspend fun downloadImageToLocal(image: FileItem): Boolean {
+    private suspend fun downloadImageToLocal(image: FileItem, saveFolder: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 val client = RetrofitClient.getOkHttpClient()
@@ -394,11 +374,11 @@ class ImageViewerActivity : AppCompatActivity() {
                 val imageBytes = response.body?.bytes() ?: return@withContext false
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    // Android 10+: Use MediaStore API
+                    // Android 10+: Use MediaStore API（RELATIVE_PATH 不存在时系统会自动创建目录）
                     val contentValues = ContentValues().apply {
                         put(MediaStore.MediaColumns.DISPLAY_NAME, image.name)
                         put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DCIM}/Screenshots")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DCIM}/$saveFolder")
                     }
 
                     val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
@@ -411,7 +391,7 @@ class ImageViewerActivity : AppCompatActivity() {
                     // Android 9 and below: Use legacy file storage
                     val screenshotsDir = File(
                         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),
-                        "Screenshots"
+                        saveFolder
                     )
                     if (!screenshotsDir.exists()) {
                         screenshotsDir.mkdirs()
@@ -491,11 +471,12 @@ class ImageViewerActivity : AppCompatActivity() {
                 Toast.makeText(this, "存储权限已授予", Toast.LENGTH_SHORT).show()
                 val currentImage = getCurrentImage()
                 if (currentImage != null) {
-                    markAsSaved(currentImage)
+                    markAsSaved(currentImage, pendingSaveFolder ?: FOLDER_P)
                 }
             } else {
                 Toast.makeText(this, "需要存储权限才能保存图片", Toast.LENGTH_LONG).show()
             }
+            pendingSaveFolder = null
         }
     }
 
@@ -507,64 +488,12 @@ class ImageViewerActivity : AppCompatActivity() {
         }
     }
 
-    private fun deleteImageAfterSave(image: FileItem) {
-        lifecycleScope.launch {
-            try {
-                saveImageButton.text = "删除中..."
-
-                val apiService = RetrofitClient.getClient(baseUrl + "/")
-                val response = apiService.deleteFile(image.path)
-
-                if (response.isSuccessful && response.body()?.success == true) {
-                    Toast.makeText(this@ImageViewerActivity, "服务器图片已删除", Toast.LENGTH_SHORT).show()
-
-                    // Remove image from list and update adapter
-                    val mutableImages = images.toMutableList()
-                    val position = imageViewPager.currentItem
-                    mutableImages.removeAt(position)
-                    images = mutableImages
-
-                    if (images.isEmpty()) {
-                        // No more images, close the viewer
-                        finish()
-                    } else {
-                        // Update the ViewPager
-                        pagerAdapter = ImagePagerAdapter(images, baseUrl) {
-                            toggleUI()
-                        }
-                        imageViewPager.adapter = pagerAdapter
-                        reapplyMergedBitmaps()
-                        // Stay at same position or go to previous if we deleted the last one
-                        val newPosition = if (position >= images.size) images.size - 1 else position
-                        imageViewPager.setCurrentItem(newPosition, false)
-                        updateImageInfo()
-                    }
-                } else {
-                    Toast.makeText(
-                        this@ImageViewerActivity,
-                        "删除失败: ${response.body()?.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            } catch (e: Exception) {
-                Toast.makeText(
-                    this@ImageViewerActivity,
-                    "删除失败: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } finally {
-                saveImageButton.isEnabled = true
-                saveImageButton.text = "保存到本地"
-            }
-        }
-    }
-
     // 标记为保存（加入保存历史）
-    private fun markAsSaved(image: FileItem) {
+    private fun markAsSaved(image: FileItem, saveFolder: String) {
         val position = currentPosition
 
         // 添加到操作历史
-        operationHistory.addLast(OperationItem(OperationType.SAVE, image, position))
+        operationHistory.addLast(OperationItem(OperationType.SAVE, image, position, saveFolder))
 
         // 从当前列表中移除
         val mutableImages = images.toMutableList()
@@ -576,11 +505,13 @@ class ImageViewerActivity : AppCompatActivity() {
             // 所有图片都标记保存了，但先不关闭Activity，允许撤销
             Toast.makeText(this, "已标记保存，可点击撤销恢复", Toast.LENGTH_SHORT).show()
             deleteButton.isEnabled = false
-            saveImageButton.isEnabled = false
+            saveToPButton.isEnabled = false
+            saveToFFButton.isEnabled = false
         } else {
             // 确保按钮是启用的
             deleteButton.isEnabled = true
-            saveImageButton.isEnabled = true
+            saveToPButton.isEnabled = true
+            saveToFFButton.isEnabled = true
 
             // 更新ViewPager
             pagerAdapter = ImagePagerAdapter(images, baseUrl) { toggleUI() }
@@ -593,7 +524,8 @@ class ImageViewerActivity : AppCompatActivity() {
         }
 
         updateUndoButton()
-        Toast.makeText(this, "已标记保存，退出时执行保存操作", Toast.LENGTH_SHORT).show()
+        val folderLabel = if (saveFolder == FOLDER_FF) "FF" else "P"
+        Toast.makeText(this, "已标记保存到$folderLabel，退出时执行保存操作", Toast.LENGTH_SHORT).show()
     }
 
     // 标记为删除（加入删除历史）
@@ -613,11 +545,13 @@ class ImageViewerActivity : AppCompatActivity() {
             // 所有图片都删除了，但先不关闭Activity，允许撤销
             Toast.makeText(this, "已标记删除，可点击撤销恢复", Toast.LENGTH_SHORT).show()
             deleteButton.isEnabled = false
-            saveImageButton.isEnabled = false
+            saveToPButton.isEnabled = false
+            saveToFFButton.isEnabled = false
         } else {
             // 确保按钮是启用的
             deleteButton.isEnabled = true
-            saveImageButton.isEnabled = true
+            saveToPButton.isEnabled = true
+            saveToFFButton.isEnabled = true
 
             // 更新ViewPager
             pagerAdapter = ImagePagerAdapter(images, baseUrl) { toggleUI() }
@@ -654,7 +588,8 @@ class ImageViewerActivity : AppCompatActivity() {
 
         // 恢复按钮状态
         deleteButton.isEnabled = true
-        saveImageButton.isEnabled = true
+        saveToPButton.isEnabled = true
+        saveToFFButton.isEnabled = true
 
         updateImageInfo()
         updateUndoButton()
@@ -687,9 +622,9 @@ class ImageViewerActivity : AppCompatActivity() {
     }
 
     // 执行真正的保存操作
-    private suspend fun executeSaveAsync(image: FileItem) {
+    private suspend fun executeSaveAsync(image: FileItem, saveFolder: String) {
         try {
-            val success = downloadImageToLocal(image)
+            val success = downloadImageToLocal(image, saveFolder)
             if (success) {
                 // 保存成功后删除服务器上的图片
                 withContext(Dispatchers.IO) {
@@ -721,7 +656,7 @@ class ImageViewerActivity : AppCompatActivity() {
                             apiService.deleteFile(operation.image.path)
                         }
                         OperationType.SAVE -> {
-                            executeSaveAsync(operation.image)
+                            executeSaveAsync(operation.image, operation.saveFolder ?: FOLDER_P)
                         }
                     }
                 }

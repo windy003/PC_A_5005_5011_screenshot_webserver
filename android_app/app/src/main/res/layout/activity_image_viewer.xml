@@ -119,14 +119,29 @@
                 android:paddingLeft="0dp"
                 android:paddingRight="0dp" />
 
-            <!-- 保存按钮 -->
+            <!-- 保存到P按钮 (DCIM/Screenshots) -->
             <Button
-                android:id="@+id/saveImageButton"
+                android:id="@+id/saveToPButton"
                 android:layout_width="match_parent"
                 android:layout_height="40dp"
-                android:text="保存"
+                android:text="保存到P"
                 android:textSize="11sp"
                 android:backgroundTint="#667eea"
+                android:layout_marginBottom="4dp"
+                android:minWidth="0dp"
+                android:insetLeft="0dp"
+                android:insetRight="0dp"
+                android:paddingLeft="0dp"
+                android:paddingRight="0dp" />
+
+            <!-- 保存到FF按钮 (DCIM/FF_Screenshots) -->
+            <Button
+                android:id="@+id/saveToFFButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="保存到FF"
+                android:textSize="11sp"
+                android:backgroundTint="#8e44ad"
                 android:layout_marginBottom="4dp"
                 android:minWidth="0dp"
                 android:insetLeft="0dp"
