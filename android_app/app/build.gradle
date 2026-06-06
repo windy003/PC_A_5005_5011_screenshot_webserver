@@ -9,11 +9,10 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.screenshotviewer"
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "2026/5/29-1"
+        versionName "2026/6/6-1"
     }
 
     buildTypes {
@@ -29,13 +28,13 @@ android {
             dimension "version"
             applicationIdSuffix ".one"
             versionNameSuffix "-one"
-            resValue "string", "app_name", "1-Screenshot Viewer"
+            resValue "string", "app_name", "1-FP-Screenshot Viewer"
         }
         two {
             dimension "version"
             applicationIdSuffix ".two"
             versionNameSuffix "-two"
-            resValue "string", "app_name", "2-Screenshot Viewer"
+            resValue "string", "app_name", "2-FPC-Screenshot Viewer"
         }
         three {
             dimension "version"

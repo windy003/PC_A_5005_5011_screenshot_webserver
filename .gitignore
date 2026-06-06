@@ -1,2 +1,6 @@
-.env
-.claude
+.claude/
+5005-FF/.env
+5011-Normal_Phone/.env
+android_app/app/build/
+android_app/.gradle/
+android_app/.idea/

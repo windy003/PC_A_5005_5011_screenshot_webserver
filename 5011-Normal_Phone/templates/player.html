@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ filename }} - 播放器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #2a2a2a;
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            color: #fff;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .back-btn {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: background 0.3s;
+            margin-left: 20px;
+        }
+
+        .back-btn:hover {
+            background: #5568d3;
+        }
+
+        .player-container {
+            flex: 1;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .main-player {
+            flex: 1;
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .file-info {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .file-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+        }
+
+        .file-name {
+            font-size: 24px;
+            font-weight: 600;
+            color: #fff;
+            word-break: break-word;
+        }
+
+        audio, video {
+            width: 100%;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        audio {
+            height: 54px;
+        }
+
+        video {
+            max-height: 500px;
+            background: #000;
+        }
+
+        .player-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            background: #3a3a3a;
+            color: white;
+        }
+
+        .control-btn:hover {
+            background: #4a4a4a;
+        }
+
+        .control-btn.active {
+            background: #667eea;
+        }
+
+        .mode-btn {
+            min-width: 100px;
+        }
+
+        .playlist-panel {
+            width: 350px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 100px);
+        }
+
+        .playlist-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3a3a3a;
+        }
+
+        .playlist-items {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .playlist-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #3a3a3a;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .playlist-item:hover {
+            background: #4a4a4a;
+        }
+
+        .playlist-item.active {
+            background: #667eea;
+        }
+
+        .playlist-item-icon {
+            font-size: 20px;
+        }
+
+        .playlist-item-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .playlist-items::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .playlist-items::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        .playlist-items::-webkit-scrollbar-thumb {
+            background: #4a4a4a;
+            border-radius: 4px;
+        }
+
+        .playlist-items::-webkit-scrollbar-thumb:hover {
+            background: #5a5a5a;
+        }
+
+        @media (max-width: 1024px) {
+            .player-container {
+                flex-direction: column;
+            }
+
+            .playlist-panel {
+                width: 100%;
+                max-height: 400px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 16px;
+            }
+
+            .main-player {
+                padding: 20px;
+            }
+
+            .file-name {
+                font-size: 18px;
+            }
+
+            video {
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 {{ filename }}</h1>
+        <a href="javascript:history.back()" class="back-btn">返回</a>
+    </div>
+
+    <div class="player-container">
+        <div class="main-player">
+            <div class="file-info">
+                <div class="file-icon">
+                    {% if file_type == 'audio' %}
+                        🎵
+                    {% elif file_type == 'video' %}
+                        🎬
+                    {% endif %}
+                </div>
+                <div class="file-name" id="currentFileName">{{ filename }}</div>
+            </div>
+
+            {% if file_type == 'audio' %}
+                <audio id="mediaPlayer" controls autoplay preload="metadata">
+                    <source src="{{ url_for('stream', filepath=filepath) }}" type="audio/{{ filename.split('.')[-1] }}">
+                    您的浏览器不支持音频播放。
+                </audio>
+            {% elif file_type == 'video' %}
+                <video id="mediaPlayer" controls autoplay preload="metadata">
+                    <source src="{{ url_for('stream', filepath=filepath) }}" type="video/{{ filename.split('.')[-1] }}">
+                    您的浏览器不支持视频播放。
+                </video>
+            {% endif %}
+
+            <div class="player-controls">
+                <button class="control-btn" onclick="playPrevious()" title="上一曲">⏮️ 上一曲</button>
+                <button class="control-btn mode-btn" id="modeBtn" onclick="togglePlayMode()" title="切换播放模式">🔁 顺序播放</button>
+                <button class="control-btn" onclick="playNext()" title="下一曲">⏭️ 下一曲</button>
+            </div>
+
+            <div class="actions">
+                <a href="{{ url_for('download', filepath=filepath) }}" id="downloadBtn" class="btn btn-primary">下载文件</a>
+                <a href="javascript:history.back()" class="btn btn-secondary">返回列表</a>
+            </div>
+        </div>
+
+        {% if playlist and playlist|length > 1 %}
+        <div class="playlist-panel">
+            <div class="playlist-header">
+                播放列表 ({{ playlist|length }})
+            </div>
+            <div class="playlist-items" id="playlistItems">
+                {% for item in playlist %}
+                    <div class="playlist-item {% if loop.index0 == current_index %}active{% endif %}"
+                         onclick="playTrack({{ loop.index0 }})"
+                         data-index="{{ loop.index0 }}">
+                        <div class="playlist-item-icon">
+                            {% if file_type == 'audio' %}🎵{% else %}🎬{% endif %}
+                        </div>
+                        <div class="playlist-item-name" title="{{ item.name }}">{{ item.name }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // 播放列表数据
+        const playlist = {{ playlist | tojson }};
+        let currentIndex = {{ current_index }};
+        let playMode = 'sequence'; // sequence: 顺序播放, loop: 单曲循环, random: 随机播放
+
+        const player = document.getElementById('mediaPlayer');
+        const modeBtn = document.getElementById('modeBtn');
+
+        // 播放指定曲目
+        function playTrack(index) {
+            if (index < 0 || index >= playlist.length) return;
+
+            currentIndex = index;
+            const track = playlist[index];
+
+            // 更新播放器源
+            const source = player.querySelector('source');
+            source.src = `/stream/${track.path}`;
+            player.load();
+            player.play();
+
+            // 更新文件名显示
+            document.getElementById('currentFileName').textContent = track.name;
+
+            // 更新下载链接
+            document.getElementById('downloadBtn').href = `/download/${track.path}`;
+
+            // 更新播放列表高亮
+            updatePlaylistHighlight();
+        }
+
+        // 更新播放列表高亮
+        function updatePlaylistHighlight() {
+            const items = document.querySelectorAll('.playlist-item');
+            items.forEach((item, idx) => {
+                if (idx === currentIndex) {
+                    item.classList.add('active');
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
+        // 上一曲
+        function playPrevious() {
+            if (playlist.length <= 1) return;
+
+            if (playMode === 'random') {
+                playRandomTrack();
+            } else {
+                let newIndex = currentIndex - 1;
+                if (newIndex < 0) {
+                    newIndex = playlist.length - 1;
+                }
+                playTrack(newIndex);
+            }
+        }
+
+        // 下一曲
+        function playNext() {
+            if (playlist.length <= 1) return;
+
+            if (playMode === 'random') {
+                playRandomTrack();
+            } else {
+                let newIndex = currentIndex + 1;
+                if (newIndex >= playlist.length) {
+                    newIndex = 0;
+                }
+                playTrack(newIndex);
+            }
+        }
+
+        // 随机播放
+        function playRandomTrack() {
+            if (playlist.length <= 1) return;
+
+            let randomIndex;
+            do {
+                randomIndex = Math.floor(Math.random() * playlist.length);
+            } while (randomIndex === currentIndex);
+
+            playTrack(randomIndex);
+        }
+
+        // 切换播放模式
+        function togglePlayMode() {
+            if (playMode === 'sequence') {
+                playMode = 'loop';
+                modeBtn.textContent = '🔂 单曲循环';
+                modeBtn.title = '单曲循环';
+            } else if (playMode === 'loop') {
+                playMode = 'random';
+                modeBtn.textContent = '🔀 随机播放';
+                modeBtn.title = '随机播放';
+            } else {
+                playMode = 'sequence';
+                modeBtn.textContent = '🔁 顺序播放';
+                modeBtn.title = '顺序播放';
+            }
+            modeBtn.classList.add('active');
+            setTimeout(() => modeBtn.classList.remove('active'), 300);
+        }
+
+        // 监听播放结束事件
+        player.addEventListener('ended', function() {
+            if (playMode === 'loop') {
+                // 单曲循环：重新播放当前曲目
+                player.currentTime = 0;
+                player.play();
+            } else if (playMode === 'random') {
+                // 随机播放：播放随机曲目
+                playRandomTrack();
+            } else {
+                // 顺序播放：播放下一曲
+                if (currentIndex < playlist.length - 1) {
+                    playNext();
+                }
+            }
+        });
+
+        // 键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            // 左箭头：上一曲
+            if (e.key === 'ArrowLeft' && e.ctrlKey) {
+                e.preventDefault();
+                playPrevious();
+            }
+            // 右箭头：下一曲
+            else if (e.key === 'ArrowRight' && e.ctrlKey) {
+                e.preventDefault();
+                playNext();
+            }
+            // M键：切换播放模式
+            else if (e.key === 'm' || e.key === 'M') {
+                togglePlayMode();
+            }
+        });
+    </script>
+</body>
+</html>

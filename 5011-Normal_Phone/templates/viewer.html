@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ filename }} - 图片查看器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2d2d2d;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #3d3d3d;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .header.ui-hidden {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            color: #fff;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+            margin-right: 20px;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .viewer-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 150px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .image-wrapper {
+            position: relative;
+            max-width: 100%;
+            max-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #currentImage {
+            max-width: 100%;
+            max-height: calc(100vh - 150px);
+            object-fit: contain;
+            transition: transform 0.3s ease;
+            cursor: grab;
+            user-select: none;
+        }
+
+        #currentImage:active {
+            cursor: grabbing;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .controls.ui-hidden {
+            transform: translateX(-50%) translateY(150%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .control-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .control-btn:hover {
+            background: #555;
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .nav-button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 24px;
+            transition: all 0.3s, opacity 0.3s ease;
+            z-index: 10;
+        }
+
+        .nav-button.ui-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .nav-button:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .nav-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .nav-button.prev {
+            left: 20px;
+        }
+
+        .nav-button.next {
+            right: 20px;
+        }
+
+        .playlist {
+            background: #2d2d2d;
+            padding: 15px 20px;
+            max-height: 80px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            border-top: 1px solid #3d3d3d;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .playlist.ui-hidden {
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .playlist-item {
+            display: inline-block;
+            padding: 8px 12px;
+            margin-right: 10px;
+            background: #3d3d3d;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+        }
+
+        .playlist-item:hover {
+            background: #4d4d4d;
+        }
+
+        .playlist-item.active {
+            background: #667eea;
+        }
+
+        .zoom-info {
+            color: #ccc;
+            font-size: 14px;
+            margin: 0 10px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 16px;
+            }
+
+            .btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .controls {
+                padding: 10px 15px;
+                gap: 5px;
+            }
+
+            .control-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            .nav-button {
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ filename }}</h1>
+        <div class="header-buttons">
+            <button class="btn btn-primary" onclick="downloadAndDelete()">保存到本地</button>
+            <a href="{{ url_for('index', subpath=filepath.rsplit('/', 1)[0] if '/' in filepath else '') }}" class="btn btn-secondary">返回</a>
+        </div>
+    </div>
+
+    <div class="viewer-container">
+        <button class="nav-button prev" id="prevBtn" onclick="previousImage()">‹</button>
+
+        <div class="image-wrapper">
+            <img id="currentImage" src="{{ url_for('stream', filepath=filepath) }}" alt="{{ filename }}">
+        </div>
+
+        <button class="nav-button next" id="nextBtn" onclick="nextImage()">›</button>
+
+        <div class="controls">
+            <button class="control-btn" onclick="zoomOut()">-</button>
+            <span class="zoom-info" id="zoomInfo">100%</span>
+            <button class="control-btn" onclick="zoomIn()">+</button>
+            <button class="control-btn" onclick="resetZoom()">重置</button>
+            <button class="control-btn" onclick="rotateLeft()">↶</button>
+            <button class="control-btn" onclick="rotateRight()">↷</button>
+            <button class="control-btn" onclick="toggleFullscreen()">全屏</button>
+        </div>
+    </div>
+
+    <div class="playlist">
+        {% for item in playlist %}
+            <span class="playlist-item {% if loop.index0 == current_index %}active{% endif %}"
+                  onclick="loadImage({{ loop.index0 }})">
+                {{ item.name }}
+            </span>
+        {% endfor %}
+    </div>
+
+    <script>
+        const playlist = {{ playlist | tojson }};
+        let currentIndex = {{ current_index }};
+        let scale = 1;
+        let rotation = 0;
+        let isDragging = false;
+        let startX, startY, translateX = 0, translateY = 0;
+        let isZoomedByDoubleTap = false;  // 跟踪是否通过双击放大
+        let baseScale = 1;  // 适应宽度时的基础缩放比例
+
+        const img = document.getElementById('currentImage');
+        const zoomInfo = document.getElementById('zoomInfo');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        function updateImage() {
+            const item = playlist[currentIndex];
+            img.src = `/stream/${item.path}`;
+            document.querySelector('.header h1').textContent = item.name;
+
+            // 更新播放列表高亮
+            document.querySelectorAll('.playlist-item').forEach((el, idx) => {
+                el.classList.toggle('active', idx === currentIndex);
+            });
+
+            // 更新导航按钮状态
+            prevBtn.disabled = currentIndex === 0;
+            nextBtn.disabled = currentIndex === playlist.length - 1;
+
+            // 重置旋转和位置
+            rotation = 0;
+            translateX = 0;
+            translateY = 0;
+        }
+
+        function loadImage(index) {
+            if (index >= 0 && index < playlist.length) {
+                currentIndex = index;
+                updateImage();
+            }
+        }
+
+        function previousImage() {
+            if (currentIndex > 0) {
+                loadImage(currentIndex - 1);
+            }
+        }
+
+        function nextImage() {
+            if (currentIndex < playlist.length - 1) {
+                loadImage(currentIndex + 1);
+            }
+        }
+
+        function zoomIn() {
+            scale = Math.min(scale + 0.2, 5);
+            updateTransform();
+        }
+
+        function zoomOut() {
+            scale = Math.max(scale - 0.2, 0.2);
+            updateTransform();
+        }
+
+        function resetZoom() {
+            scale = 1;
+            rotation = 0;
+            translateX = 0;
+            translateY = 0;
+            isZoomedByDoubleTap = false;
+            updateTransform();
+        }
+
+        function fitToWidth() {
+            // 获取容器宽度
+            const containerWidth = document.querySelector('.viewer-container').clientWidth;
+            // 获取图片的自然宽度
+            const imgNaturalWidth = img.naturalWidth;
+            // 计算需要的缩放比例
+            if (imgNaturalWidth > 0) {
+                scale = containerWidth / imgNaturalWidth;
+                baseScale = scale;  // 保存基础缩放比例
+                translateX = 0;
+                translateY = 0;
+                isZoomedByDoubleTap = false;
+                updateTransform();
+            }
+        }
+
+        function rotateLeft() {
+            rotation -= 90;
+            updateTransform();
+        }
+
+        function rotateRight() {
+            rotation += 90;
+            updateTransform();
+        }
+
+        function updateTransform() {
+            img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale}) rotate(${rotation}deg)`;
+            zoomInfo.textContent = Math.round(scale * 100) + '%';
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // 鼠标拖拽
+        img.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                translateX = e.clientX - startX;
+                translateY = e.clientY - startY;
+                updateTransform();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // 鼠标滚轮缩放
+        img.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                zoomIn();
+            } else {
+                zoomOut();
+            }
+        });
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    previousImage();
+                    break;
+                case 'ArrowRight':
+                    nextImage();
+                    break;
+                case '+':
+                case '=':
+                    zoomIn();
+                    break;
+                case '-':
+                    zoomOut();
+                    break;
+                case '0':
+                    resetZoom();
+                    break;
+                case 'f':
+                case 'F':
+                    toggleFullscreen();
+                    break;
+            }
+        });
+
+        // 下载并删除图片
+        function downloadAndDelete() {
+            const item = playlist[currentIndex];
+            const downloadUrl = `/download/${item.path}`;
+
+            // 创建一个隐藏的a标签来触发下载
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = item.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // 等待一小段时间确保下载开始,然后删除文件
+            setTimeout(() => {
+                // 调用删除接口
+                fetch('/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `path=${encodeURIComponent(item.path)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 从播放列表中移除当前图片
+                        playlist.splice(currentIndex, 1);
+
+                        // 如果还有图片,显示下一张(或前一张)
+                        if (playlist.length > 0) {
+                            // 如果删除的是最后一张,显示前一张
+                            if (currentIndex >= playlist.length) {
+                                currentIndex = playlist.length - 1;
+                            }
+                            updateImage();
+                        } else {
+                            // 如果没有图片了,返回文件列表
+                            const parentPath = item.path.split('/').slice(0, -1).join('/');
+                            window.location.href = `/browse/${parentPath}`;
+                        }
+                    } else {
+                        alert('删除失败: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('删除失败:', error);
+                    alert('删除失败,请稍后重试');
+                });
+            }, 1000); // 等待1秒确保下载开始
+        }
+
+        // 触摸支持
+        let touchStartDistance = 0;
+        let touchStartScale = 1;
+
+        img.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                touchStartDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                touchStartScale = scale;
+            } else if (e.touches.length === 1) {
+                isDragging = true;
+                startX = e.touches[0].clientX - translateX;
+                startY = e.touches[0].clientY - translateY;
+            }
+        });
+
+        img.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 2) {
+                const distance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                scale = Math.max(0.2, Math.min(5, touchStartScale * (distance / touchStartDistance)));
+                updateTransform();
+            } else if (e.touches.length === 1 && isDragging) {
+                translateX = e.touches[0].clientX - startX;
+                translateY = e.touches[0].clientY - startY;
+                updateTransform();
+            }
+        });
+
+        img.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // 双击缩放处理
+        let lastTapTime = 0;
+        let lastTapX = 0;
+        let lastTapY = 0;
+
+        function handleDoubleTap(clientX, clientY) {
+            if (isZoomedByDoubleTap) {
+                // 已经放大，返回原始大小
+                fitToWidth();
+            } else {
+                // 放大25%，以点击点为中心
+                const rect = img.getBoundingClientRect();
+
+                // 计算点击位置相对于图片中心的偏移
+                const imgCenterX = rect.left + rect.width / 2;
+                const imgCenterY = rect.top + rect.height / 2;
+
+                // 点击位置相对于图片中心的偏移
+                const offsetX = clientX - imgCenterX;
+                const offsetY = clientY - imgCenterY;
+
+                // 放大25%
+                const newScale = baseScale * 1.25;
+                const scaleRatio = newScale / scale;
+
+                // 计算新的平移值，使点击点保持在原位置
+                translateX = translateX - offsetX * (scaleRatio - 1);
+                translateY = translateY - offsetY * (scaleRatio - 1);
+
+                scale = newScale;
+                isZoomedByDoubleTap = true;
+                updateTransform();
+            }
+        }
+
+        // 鼠标双击事件
+        img.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            handleDoubleTap(e.clientX, e.clientY);
+        });
+
+        // 触摸双击事件（通过检测两次快速点击）
+        img.addEventListener('touchend', (e) => {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTapTime;
+
+            if (e.changedTouches.length === 1) {
+                const touch = e.changedTouches[0];
+
+                if (tapLength < 300 && tapLength > 0) {
+                    // 检查两次点击位置是否接近
+                    const distance = Math.hypot(touch.clientX - lastTapX, touch.clientY - lastTapY);
+                    if (distance < 50) {
+                        e.preventDefault();
+                        handleDoubleTap(touch.clientX, touch.clientY);
+                    }
+                }
+
+                lastTapTime = currentTime;
+                lastTapX = touch.clientX;
+                lastTapY = touch.clientY;
+            }
+        });
+
+        // 图片加载完成后自动适应宽度
+        img.addEventListener('load', () => {
+            fitToWidth();
+        });
+
+        // 初始化按钮状态
+        updateImage();
+    </script>
+</body>
+</html>
