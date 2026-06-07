@@ -12,7 +12,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode 1
-        versionName "2026/6/6-2"
+        versionName "2026/6/7-1"
     }
 
     buildTypes {
@@ -22,28 +22,7 @@ android {
         }
     }
 
-    flavorDimensions "version"
-    productFlavors {
-        one_FP_ {
-            dimension "version"
-            applicationIdSuffix ".one"
-            versionNameSuffix "-one"
-            resValue "string", "app_name", "1-FP-Screenshot Viewer"
-        }
-        two_FPC_ {
-            dimension "version"
-            applicationIdSuffix ".two"
-            versionNameSuffix "-two"
-            resValue "string", "app_name", "2-FPC-Screenshot Viewer"
-        }
-        three {
-            dimension "version"
-            applicationIdSuffix ".three"
-            versionNameSuffix "-three"
-            resValue "string", "app_name", "3-Screenshot Viewer"
-        }
-    }
-
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8

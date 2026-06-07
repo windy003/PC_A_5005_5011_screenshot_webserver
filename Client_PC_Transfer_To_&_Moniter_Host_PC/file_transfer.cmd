@@ -1,0 +1,1 @@
+start /b pythonw  "D:\files\using\Web\P_A_PC_SMTR_API_WAA\Client_PC_Transfer_To_&_Moniter_Host_PC\file_transfer.py"

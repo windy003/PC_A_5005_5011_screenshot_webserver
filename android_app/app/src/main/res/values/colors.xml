@@ -7,4 +7,11 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- 小部件文字颜色 -->
+    <color name="widget_orange">#FFFF8C00</color>
+    <color name="widget_red">#FFFF1744</color>
+    <color name="widget_green">#FF00C853</color>
+    <color name="widget_blue">#FF2962FF</color>
+    <color name="widget_bg">#FFFFFFFF</color>
 </resources>

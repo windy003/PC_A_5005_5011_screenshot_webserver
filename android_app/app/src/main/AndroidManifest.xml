@@ -11,7 +11,7 @@
     <application
         android:allowBackup="true"
         android:icon="@drawable/a2048x2048"
-        android:label="@string/app_name"
+        android:label="Screenshot Viewer"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
@@ -29,6 +29,42 @@
             android:name=".ImageViewerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
+
+        <!-- small 站点图片数量小部件 -->
+        <receiver
+            android:name=".SmallCountWidgetProvider"
+            android:exported="false"
+            android:label="@string/small_count_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.screenshotviewer.ACTION_WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/count_widget_info" />
+        </receiver>
+
+        <!-- large 站点图片数量小部件 -->
+        <receiver
+            android:name=".LargeCountWidgetProvider"
+            android:exported="false"
+            android:label="@string/large_count_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.screenshotviewer.ACTION_WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/count_widget_info" />
+        </receiver>
+
+        <activity
+            android:name=".CountWidgetConfigActivity"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

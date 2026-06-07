@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- app_name 由 productFlavor (one/two) 的 resValue 提供 -->
+
+    <!-- 图片数量统计小部件 -->
+    <string name="count_widget_label">图片数量统计</string>
+    <string name="small_count_widget_label">small 图片数</string>
+    <string name="large_count_widget_label">large 图片数</string>
+    <string name="count_widget_description">显示指定目录下的图片数量及上次更新时间</string>
+    <string name="widget_unit">个</string>
+    <string name="widget_ago">前</string>
+
+    <!-- 小部件配置界面 -->
+    <string name="cfg_title">小部件设置</string>
+    <string name="cfg_name_hint">自定义名称</string>
+    <string name="cfg_url_hint">服务器地址（如 http://192.168.1.100:5005）</string>
+    <string name="cfg_path_hint">统计路径（如 small/browse/releasing）</string>
+    <string name="cfg_save">保存</string>
 </resources>

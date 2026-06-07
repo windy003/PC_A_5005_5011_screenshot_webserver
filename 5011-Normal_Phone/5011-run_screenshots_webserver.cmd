@@ -1,1 +1,0 @@
-start  /b  pythonw  "D:\files\using\Web\PC_A_5005_5011_screenshot_webserver\5011-Normal_Phone\app.py"

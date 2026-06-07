@@ -1,0 +1,1 @@
+start /b   pythonw "D:\files\using\Web\PC_A_5005_screenshot_webserver\Client_PC_Get_Host_Status_In_Tray\server_status_tray.py"

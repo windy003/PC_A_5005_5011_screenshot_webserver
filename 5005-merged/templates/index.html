@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件浏览器</title>
+    <link rel="apple-touch-icon" sizes="2048x2048" href="{{ url_for('static', filename='2048x2048.png') }}"> 
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='2048x2048.png') }}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .header {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        .logout-btn {
+            padding: 8px 16px;
+            background: #dc3545;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .breadcrumb {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .breadcrumb a {
+            color: #667eea;
+            text-decoration: none;
+            margin-right: 5px;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb span {
+            margin: 0 5px;
+            color: #999;
+        }
+
+        .actions {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .file-list {
+            background: white;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.3s;
+        }
+
+        .file-item:hover {
+            background: #f9f9f9;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            width: 30px;
+            text-align: center;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+            word-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+        }
+
+        .file-name a {
+            color: #333;
+            text-decoration: none;
+        }
+
+        .file-name a:hover {
+            color: #667eea;
+        }
+
+        .file-size {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .alert {
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .menu-btn {
+            display: none;
+            background: #667eea;
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.3s;
+        }
+
+        .menu-btn:hover {
+            background: #5568d3;
+        }
+
+        /* 视图切换按钮激活状态 */
+        .btn.view-active {
+            background: #4d4d4d;
+        }
+
+        /* 网格视图样式 */
+        .file-list.grid-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .file-list.grid-view .file-item {
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            height: 220px;
+        }
+
+        .file-list.grid-view .file-item:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .file-list.grid-view .file-icon {
+            font-size: 48px;
+            margin: 0 0 10px 0;
+        }
+
+        .file-list.grid-view .file-thumbnail {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background: #f5f5f5;
+        }
+
+        .file-list.grid-view .file-info {
+            text-align: center;
+            width: 100%;
+        }
+
+        .file-list.grid-view .file-name {
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            white-space: normal;
+            width: 100%;
+            line-height: 1.4;
+            max-height: 36px;
+        }
+
+        .file-list.grid-view .file-name a {
+            display: block;
+        }
+
+        .file-list.grid-view .file-size {
+            font-size: 11px;
+            margin-top: 5px;
+            color: #999;
+        }
+
+        .file-list.grid-view .menu-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 28px;
+            height: 28px;
+            font-size: 16px;
+            padding: 0;
+        }
+
+        .file-list.grid-view .file-actions {
+            display: none;
+            position: absolute;
+            top: 40px;
+            right: 5px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            padding: 5px;
+            z-index: 100;
+            flex-direction: column;
+            width: auto;
+            min-width: 120px;
+        }
+
+        .file-list.grid-view .file-actions.show {
+            display: flex;
+        }
+
+        .file-list.grid-view .file-actions .btn-sm {
+            margin: 3px 0;
+            width: 100%;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        /* 移动端样式 */
+        @media (max-width: 768px) {
+            .file-item {
+                flex-wrap: wrap;
+                position: relative;
+            }
+
+            .file-info {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .menu-btn {
+                display: block;
+            }
+
+            .file-actions {
+                display: none;
+                width: 100%;
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid #f0f0f0;
+                flex-wrap: wrap;
+            }
+
+            .file-actions.show {
+                display: flex;
+            }
+
+            .file-actions .btn-sm {
+                flex: 1;
+                min-width: calc(50% - 5px);
+                text-align: center;
+            }
+
+            /* 移动端网格视图 */
+            .file-list.grid-view {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+                gap: 10px;
+                padding: 15px;
+            }
+
+            .file-list.grid-view .file-item {
+                display: flex;
+                flex-direction: column;
+                flex-wrap: nowrap;
+                justify-content: flex-start;
+                align-items: center;
+                height: 180px;
+                padding: 10px;
+            }
+
+            .file-list.grid-view .file-icon {
+                font-size: 36px;
+            }
+
+            .file-list.grid-view .file-thumbnail {
+                height: 100px;
+            }
+
+            .file-list.grid-view .file-info {
+                position: relative;
+                margin-top: auto;
+            }
+
+            .file-list.grid-view .file-name {
+                font-size: 12px;
+                line-height: 1.3;
+                max-height: 32px;
+            }
+
+            .file-list.grid-view .file-size {
+                font-size: 10px;
+            }
+
+            .mini-player {
+                padding: 10px !important;
+            }
+
+            .mini-player-info {
+                font-size: 12px !important;
+            }
+
+            .mini-player-controls button {
+                padding: 8px 12px !important;
+                font-size: 16px !important;
+            }
+        }
+
+        /* 底部音频播放器样式 */
+        .mini-player {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .mini-player.active {
+            display: flex;
+        }
+
+        .mini-player-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .mini-player-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .mini-player-progress {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+        }
+
+        .mini-player-progress input[type="range"] {
+            flex: 1;
+            height: 4px;
+        }
+
+        .mini-player-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .mini-player-controls button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.3s;
+        }
+
+        .mini-player-controls button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .mini-player-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .mini-player-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 为了给底部播放器留出空间 */
+        body.player-active {
+            padding-bottom: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ site_name }}</h1>
+        <div style="display: flex; gap: 10px;">
+            <a href="{{ url_for('home') }}" class="logout-btn" style="background:#667eea;">切换站点</a>
+            <a href="{{ url_for('logout') }}" class="logout-btn">退出登录</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="{{ url_for('index', site=site) }}" onclick="localStorage.removeItem('lastVisitedPath')">首页</a>
+            {% for crumb in breadcrumbs %}
+                <span>/</span>
+                <a href="{{ url_for('index', site=site, subpath=crumb.path) }}">{{ crumb.name }}</a>
+            {% endfor %}
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" onclick="openUploadModal()">上传文件</button>
+            <button class="btn btn-success" onclick="openMkdirModal()">创建文件夹</button>
+            <div style="margin-left: auto; display: flex; gap: 5px;">
+                <button class="btn btn-secondary" id="listViewBtn" onclick="switchView('list')" title="列表视图">☰</button>
+                <button class="btn btn-secondary" id="gridViewBtn" onclick="switchView('grid')" title="网格视图">⊞</button>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div id="alertContainer"></div>
+
+        <div class="file-list">
+            {% if items %}
+                {% for item in items %}
+                    <div class="file-item" data-type="{{ item.file_type if not item.is_dir else 'folder' }}">
+                        {% if item.file_type == 'image' %}
+                            <img class="file-thumbnail" src="{{ url_for('stream', site=site, filepath=item.path) }}" alt="{{ item.name }}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        {% endif %}
+                        <div class="file-icon" {% if item.file_type == 'image' %}style="display:none;"{% endif %}>
+                            {% if item.is_dir %}
+                                📁
+                            {% elif item.file_type == 'audio' %}
+                                🎵
+                            {% elif item.file_type == 'video' %}
+                                🎬
+                            {% elif item.file_type == 'image' %}
+                                🖼️
+                            {% elif item.file_type == 'pdf' %}
+                                📕
+                            {% else %}
+                                📄
+                            {% endif %}
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">
+                                {% if item.is_dir %}
+                                    <a href="{{ url_for('index', site=site, subpath=item.path) }}">{{ item.name }}</a>
+                                {% elif item.file_type == 'audio' %}
+                                    <a href="#" onclick="playAudio('{{ url_for('stream', site=site, filepath=item.path) }}', '{{ item.name }}'); return false;">{{ item.name }}</a>
+                                {% elif item.file_type == 'video' %}
+                                    <a href="{{ url_for('play', site=site, filepath=item.path) }}">{{ item.name }}</a>
+                                {% elif item.file_type == 'image' %}
+                                    <a href="{{ url_for('view', site=site, filepath=item.path) }}">{{ item.name }}</a>
+                                {% else %}
+                                    <a href="{{ url_for('download', site=site, filepath=item.path) }}">{{ item.name }}</a>
+                                {% endif %}
+                            </div>
+                            {% if not item.is_dir %}
+                                <div class="file-size">{{ item.size | format_size }}</div>
+                            {% endif %}
+                        </div>
+                        <button class="menu-btn" onclick="toggleActions(this)">⋮</button>
+                        <div class="file-actions">
+                            {% if not item.is_dir %}
+                                {% if item.file_type == 'audio' %}
+                                    <button class="btn btn-success btn-sm" onclick="playAudio('{{ url_for('stream', site=site, filepath=item.path) }}', '{{ item.name }}'); event.stopPropagation();">播放</button>
+                                {% elif item.file_type == 'video' %}
+                                    <a href="{{ url_for('play', site=site, filepath=item.path) }}" class="btn btn-success btn-sm">播放</a>
+                                {% elif item.file_type == 'image' %}
+                                    <a href="{{ url_for('view', site=site, filepath=item.path) }}" class="btn btn-success btn-sm">查看</a>
+                                {% endif %}
+                                <a href="{{ url_for('download', site=site, filepath=item.path) }}" class="btn btn-info btn-sm">下载</a>
+                            {% endif %}
+                            <button class="btn btn-info btn-sm" onclick="copyItem('{{ item.path }}', '{{ item.name }}')">复制</button>
+                            <button class="btn btn-info btn-sm" onclick="cutItem('{{ item.path }}', '{{ item.name }}')">剪切</button>
+                            <button class="btn btn-secondary btn-sm" onclick="openRenameModal('{{ item.path }}', '{{ item.name }}')">重命名</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteItem('{{ item.path }}', '{{ item.name }}')">删除</button>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">📂</div>
+                    <p>此目录为空</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 底部音频播放器 -->
+    <div id="miniPlayer" class="mini-player">
+        <div class="mini-player-info">
+            <div class="mini-player-title" id="playerTitle">未播放</div>
+            <div class="mini-player-progress">
+                <span id="currentTime">0:00</span>
+                <input type="range" id="progressBar" min="0" max="100" value="0">
+                <span id="duration">0:00</span>
+            </div>
+        </div>
+        <div class="mini-player-controls">
+            <button onclick="previousTrack()" title="上一首">⏮</button>
+            <button id="playPauseBtn" onclick="togglePlayPause()" title="播放/暂停">▶️</button>
+            <button onclick="nextTrack()" title="下一首">⏭</button>
+            <button id="playModeBtn" onclick="togglePlayMode()" title="顺序播放">🔁</button>
+        </div>
+        <button class="mini-player-close" onclick="closeMiniPlayer()" title="关闭">✕</button>
+        <audio id="audioPlayer"></audio>
+    </div>
+
+    <!-- 上传模态框 -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <h3>上传文件</h3>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="fileInput">选择文件</label>
+                    <input type="file" id="fileInput" name="file" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">上传</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 创建文件夹模态框 -->
+    <div id="mkdirModal" class="modal">
+        <div class="modal-content">
+            <h3>创建文件夹</h3>
+            <form id="mkdirForm">
+                <div class="form-group">
+                    <label for="dirNameInput">文件夹名称</label>
+                    <input type="text" id="dirNameInput" name="dirname" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="closeMkdirModal()">取消</button>
+                    <button type="submit" class="btn btn-success">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 重命名模态框 -->
+    <div id="renameModal" class="modal">
+        <div class="modal-content">
+            <h3>重命名</h3>
+            <form id="renameForm">
+                <div class="form-group">
+                    <label for="newNameInput">新名称</label>
+                    <input type="text" id="newNameInput" name="new_name" required>
+                </div>
+                <input type="hidden" id="renamePathInput" name="path">
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="closeRenameModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">确定</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 目录选择模态框 -->
+    <div id="folderSelectModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <h3 id="folderSelectTitle">选择目标文件夹</h3>
+            <div style="margin-bottom: 15px; padding: 10px; background: #f0f0f0; border-radius: 5px;">
+                <strong>操作:</strong> <span id="operationInfo"></span>
+            </div>
+            <div class="breadcrumb" id="folderBreadcrumb" style="margin-bottom: 15px;">
+                <a href="#" onclick="loadFolderContents(''); return false;">首页</a>
+            </div>
+            <div id="folderList" style="max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 5px;">
+                <!-- 文件夹列表将动态加载 -->
+            </div>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeFolderSelectModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="confirmPaste()">粘贴到此处</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const currentPath = "{{ current_path }}";
+        const sitePrefix = "/{{ site }}";
+
+        // ============ 音频播放器管理 ============
+        const audioPlayer = document.getElementById('audioPlayer');
+        const miniPlayer = document.getElementById('miniPlayer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const progressBar = document.getElementById('progressBar');
+        const currentTimeSpan = document.getElementById('currentTime');
+        const durationSpan = document.getElementById('duration');
+        const playerTitle = document.getElementById('playerTitle');
+        const playModeBtn = document.getElementById('playModeBtn');
+
+        let playlist = [];
+        let currentTrackIndex = -1;
+        let playMode = 'sequence'; // sequence: 顺序播放, loop: 单曲循环, random: 随机播放
+
+        // 保存播放器状态到 localStorage
+        function savePlayerState() {
+            if (audioPlayer.src) {
+                const playerState = {
+                    src: audioPlayer.src,
+                    title: playerTitle.textContent,
+                    currentTime: audioPlayer.currentTime,
+                    isPlaying: !audioPlayer.paused,
+                    isActive: miniPlayer.classList.contains('active'),
+                    playMode: playMode
+                };
+                localStorage.setItem('audioPlayerState', JSON.stringify(playerState));
+            }
+        }
+
+        // 从 localStorage 恢复播放器状态
+        function restorePlayerState() {
+            const savedState = localStorage.getItem('audioPlayerState');
+            if (savedState) {
+                try {
+                    const playerState = JSON.parse(savedState);
+                    if (playerState.isActive && playerState.src) {
+                        audioPlayer.src = playerState.src;
+                        playerTitle.textContent = playerState.title;
+                        miniPlayer.classList.add('active');
+                        document.body.classList.add('player-active');
+
+                        // 恢复播放模式
+                        if (playerState.playMode) {
+                            playMode = playerState.playMode;
+                            updatePlayModeButton();
+                        }
+
+                        // 等待音频加载后设置播放位置
+                        audioPlayer.addEventListener('loadedmetadata', function setTime() {
+                            if (playerState.currentTime) {
+                                audioPlayer.currentTime = playerState.currentTime;
+                            }
+                            if (playerState.isPlaying) {
+                                audioPlayer.play().catch(err => {
+                                    console.log('自动播放被阻止:', err);
+                                    playPauseBtn.textContent = '▶️';
+                                });
+                            }
+                            audioPlayer.removeEventListener('loadedmetadata', setTime);
+                        }, { once: true });
+                    }
+                } catch (error) {
+                    console.error('恢复播放器状态失败:', error);
+                    localStorage.removeItem('audioPlayerState');
+                }
+            }
+        }
+
+        // 播放音频
+        function playAudio(audioUrl, title) {
+            // 构建当前目录的播放列表
+            buildPlaylist(audioUrl);
+
+            audioPlayer.src = audioUrl;
+            playerTitle.textContent = title;
+            audioPlayer.play();
+            miniPlayer.classList.add('active');
+            document.body.classList.add('player-active');
+            playPauseBtn.textContent = '⏸';
+            savePlayerState();
+        }
+
+        // 构建播放列表
+        function buildPlaylist(currentAudioUrl) {
+            playlist = [];
+            currentTrackIndex = -1;
+
+            // 从页面中提取所有音频文件链接
+            const audioLinks = document.querySelectorAll('a[onclick*="playAudio"]');
+            audioLinks.forEach((link, index) => {
+                // 提取 onclick 中的参数
+                const onclickAttr = link.getAttribute('onclick');
+                const urlMatch = onclickAttr.match(/playAudio\('([^']+)',\s*'([^']+)'\)/);
+                if (urlMatch) {
+                    const url = urlMatch[1];
+                    const name = urlMatch[2];
+                    playlist.push({ url, name });
+
+                    // 找到当前播放的音频在列表中的索引
+                    if (url === currentAudioUrl) {
+                        currentTrackIndex = index;
+                    }
+                }
+            });
+        }
+
+        // 播放/暂停切换
+        function togglePlayPause() {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                playPauseBtn.textContent = '⏸';
+            } else {
+                audioPlayer.pause();
+                playPauseBtn.textContent = '▶️';
+            }
+            savePlayerState();
+        }
+
+        // 关闭播放器
+        function closeMiniPlayer() {
+            audioPlayer.pause();
+            audioPlayer.src = '';
+            miniPlayer.classList.remove('active');
+            document.body.classList.remove('player-active');
+            playPauseBtn.textContent = '▶️';
+            localStorage.removeItem('audioPlayerState');
+        }
+
+        // 上一首
+        function previousTrack() {
+            if (playMode === 'random' && playlist.length > 0) {
+                playRandomTrack();
+            } else if (currentTrackIndex > 0) {
+                currentTrackIndex--;
+                const track = playlist[currentTrackIndex];
+                playAudio(track.url, track.name);
+            }
+        }
+
+        // 下一首
+        function nextTrack() {
+            if (playMode === 'random' && playlist.length > 0) {
+                playRandomTrack();
+            } else if (currentTrackIndex < playlist.length - 1) {
+                currentTrackIndex++;
+                const track = playlist[currentTrackIndex];
+                playAudio(track.url, track.name);
+            }
+        }
+
+        // 更新播放模式按钮显示
+        function updatePlayModeButton() {
+            if (playMode === 'sequence') {
+                playModeBtn.textContent = '🔁';
+                playModeBtn.title = '顺序播放';
+            } else if (playMode === 'loop') {
+                playModeBtn.textContent = '🔂';
+                playModeBtn.title = '单曲循环';
+            } else if (playMode === 'random') {
+                playModeBtn.textContent = '🔀';
+                playModeBtn.title = '随机播放';
+            }
+        }
+
+        // 切换播放模式
+        function togglePlayMode() {
+            if (playMode === 'sequence') {
+                playMode = 'loop';
+            } else if (playMode === 'loop') {
+                playMode = 'random';
+            } else {
+                playMode = 'sequence';
+            }
+            updatePlayModeButton();
+            savePlayerState();
+        }
+
+        // 随机播放
+        function playRandomTrack() {
+            if (playlist.length <= 1) return;
+
+            let randomIndex;
+            do {
+                randomIndex = Math.floor(Math.random() * playlist.length);
+            } while (randomIndex === currentTrackIndex && playlist.length > 1);
+
+            currentTrackIndex = randomIndex;
+            const track = playlist[currentTrackIndex];
+            playAudio(track.url, track.name);
+        }
+
+        // 定期保存播放进度
+        setInterval(() => {
+            if (miniPlayer.classList.contains('active') && audioPlayer.src) {
+                savePlayerState();
+            }
+        }, 5000); // 每5秒保存一次
+
+        // 页面卸载前保存状态
+        window.addEventListener('beforeunload', () => {
+            if (miniPlayer.classList.contains('active') && audioPlayer.src) {
+                savePlayerState();
+            }
+        });
+
+        // 格式化时间
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // 更新进度条
+        audioPlayer.addEventListener('timeupdate', () => {
+            if (audioPlayer.duration) {
+                const progress = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+                progressBar.value = progress;
+                currentTimeSpan.textContent = formatTime(audioPlayer.currentTime);
+            }
+        });
+
+        // 加载元数据时更新总时长
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            durationSpan.textContent = formatTime(audioPlayer.duration);
+        });
+
+        // 进度条拖动
+        progressBar.addEventListener('input', (e) => {
+            const time = (e.target.value / 100) * audioPlayer.duration;
+            audioPlayer.currentTime = time;
+        });
+
+        // 自动播放下一首
+        audioPlayer.addEventListener('ended', () => {
+            if (playMode === 'loop') {
+                // 单曲循环：重新播放当前曲目
+                audioPlayer.currentTime = 0;
+                audioPlayer.play();
+            } else if (playMode === 'random') {
+                // 随机播放：播放随机曲目
+                playRandomTrack();
+            } else {
+                // 顺序播放：播放下一曲
+                nextTrack();
+            }
+        });
+
+        // 播放状态变化
+        audioPlayer.addEventListener('play', () => {
+            playPauseBtn.textContent = '⏸';
+            savePlayerState();
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            playPauseBtn.textContent = '▶️';
+            savePlayerState();
+        });
+
+        // 剪贴板管理
+        let clipboard = {
+            operation: null, // 'copy' or 'cut'
+            path: null,
+            name: null
+        };
+
+        // 当前选择的目标路径
+        let selectedDestPath = '';
+
+        // 复制文件/文件夹
+        function copyItem(path, name) {
+            clipboard = {
+                operation: 'copy',
+                path: path,
+                name: name
+            };
+            openFolderSelectModal();
+        }
+
+        // 剪切文件/文件夹
+        function cutItem(path, name) {
+            clipboard = {
+                operation: 'cut',
+                path: path,
+                name: name
+            };
+            openFolderSelectModal();
+        }
+
+        // 打开文件夹选择模态框
+        function openFolderSelectModal() {
+            const operationText = clipboard.operation === 'copy' ? '复制' : '剪切';
+            document.getElementById('operationInfo').textContent = `${operationText} "${clipboard.name}"`;
+            selectedDestPath = '';
+            loadFolderContents('');
+            document.getElementById('folderSelectModal').classList.add('active');
+        }
+
+        // 关闭文件夹选择模态框
+        function closeFolderSelectModal() {
+            document.getElementById('folderSelectModal').classList.remove('active');
+        }
+
+        // 加载文件夹内容
+        async function loadFolderContents(path) {
+            selectedDestPath = path;
+
+            try {
+                const response = await fetch(`${sitePrefix}/api/folders?path=${encodeURIComponent(path)}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    displayFolderList(result.folders, result.breadcrumbs);
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('加载文件夹失败: ' + error.message, 'error');
+            }
+        }
+
+        // 显示文件夹列表
+        function displayFolderList(folders, breadcrumbs) {
+            const folderList = document.getElementById('folderList');
+            const breadcrumbDiv = document.getElementById('folderBreadcrumb');
+
+            // 更新面包屑
+            breadcrumbDiv.innerHTML = '<a href="#" onclick="loadFolderContents(\'\'); return false;">首页</a>';
+            breadcrumbs.forEach(crumb => {
+                breadcrumbDiv.innerHTML += '<span>/</span>';
+                breadcrumbDiv.innerHTML += `<a href="#" onclick="loadFolderContents('${crumb.path}'); return false;">${crumb.name}</a>`;
+            });
+
+            // 更新文件夹列表
+            if (folders.length === 0) {
+                folderList.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;">此目录没有子文件夹</div>';
+            } else {
+                folderList.innerHTML = folders.map(folder => `
+                    <div class="file-item" onclick="loadFolderContents('${folder.path}')" style="cursor: pointer;">
+                        <div class="file-icon">📁</div>
+                        <div class="file-info">
+                            <div class="file-name">${folder.name}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // 确认粘贴
+        async function confirmPaste() {
+            if (!clipboard.operation || !clipboard.path) {
+                showAlert('剪贴板为空', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('source_path', clipboard.path);
+            formData.append('dest_path', selectedDestPath);
+
+            try {
+                const endpoint = clipboard.operation === 'copy' ? `${sitePrefix}/copy` : `${sitePrefix}/move`;
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    closeFolderSelectModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('操作失败: ' + error.message, 'error');
+            }
+        }
+
+        // 视图切换功能
+        function switchView(viewType) {
+            const fileList = document.querySelector('.file-list');
+            const listViewBtn = document.getElementById('listViewBtn');
+            const gridViewBtn = document.getElementById('gridViewBtn');
+
+            if (viewType === 'grid') {
+                fileList.classList.add('grid-view');
+                listViewBtn.classList.remove('view-active');
+                gridViewBtn.classList.add('view-active');
+                localStorage.setItem('fileViewMode', 'grid');
+
+                // 显示图片缩略图
+                document.querySelectorAll('.file-item').forEach(item => {
+                    const thumbnail = item.querySelector('.file-thumbnail');
+                    const icon = item.querySelector('.file-icon');
+                    if (thumbnail) {
+                        thumbnail.style.display = 'block';
+                        icon.style.display = 'none';
+                    }
+                });
+            } else {
+                fileList.classList.remove('grid-view');
+                listViewBtn.classList.add('view-active');
+                gridViewBtn.classList.remove('view-active');
+                localStorage.setItem('fileViewMode', 'list');
+
+                // 隐藏图片缩略图（在列表视图中）
+                document.querySelectorAll('.file-item').forEach(item => {
+                    const thumbnail = item.querySelector('.file-thumbnail');
+                    const icon = item.querySelector('.file-icon');
+                    if (thumbnail) {
+                        thumbnail.style.display = 'none';
+                        icon.style.display = 'block';
+                    }
+                });
+            }
+        }
+
+        // 保存当前访问的路径
+        function saveCurrentPath() {
+            if (currentPath) {
+                localStorage.setItem('lastVisitedPath', currentPath);
+            } else {
+                // 如果在根目录，保存空字符串
+                localStorage.setItem('lastVisitedPath', '');
+            }
+        }
+
+        // 恢复上次访问的路径
+        function restoreLastPath() {
+            const lastPath = localStorage.getItem('lastVisitedPath');
+
+            // 只有在当前是根目录（首次访问或直接访问根路径）时才自动跳转
+            // 并且 lastPath 存在且不为空
+            if (currentPath === '' && lastPath && lastPath !== '') {
+                window.location.href = `${sitePrefix}/browse/${lastPath}`;
+                return true;
+            }
+            return false;
+        }
+
+        // 页面加载时恢复用户的视图偏好和播放器状态
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedView = localStorage.getItem('fileViewMode') || 'list';
+            switchView(savedView);
+
+            // 恢复音频播放器状态
+            restorePlayerState();
+
+            // 尝试恢复上次访问的路径（如果当前在根目录）
+            const redirected = restoreLastPath();
+
+            // 如果没有发生重定向，保存当前路径
+            if (!redirected) {
+                saveCurrentPath();
+            }
+        });
+
+        function toggleActions(button) {
+            const fileItem = button.closest('.file-item');
+            const actions = fileItem.querySelector('.file-actions');
+
+            // 关闭其他已打开的菜单
+            document.querySelectorAll('.file-actions.show').forEach(el => {
+                if (el !== actions) {
+                    el.classList.remove('show');
+                }
+            });
+
+            // 切换当前菜单
+            actions.classList.toggle('show');
+        }
+
+        // 点击其他地方关闭菜单
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.file-item')) {
+                document.querySelectorAll('.file-actions.show').forEach(el => {
+                    el.classList.remove('show');
+                });
+            }
+        });
+
+        // 网格视图下点击文件卡片进行导航
+        function handleGridItemClick(e) {
+            const fileList = document.querySelector('.file-list');
+            if (!fileList.classList.contains('grid-view')) {
+                return; // 只在网格视图下启用
+            }
+
+            const fileItem = e.target.closest('.file-item');
+            if (!fileItem) return;
+
+            // 如果点击的是按钮或链接，不处理
+            if (e.target.closest('button') || e.target.closest('a') || e.target.closest('.file-actions')) {
+                return;
+            }
+
+            // 获取文件项中的主链接并导航
+            const link = fileItem.querySelector('.file-name a');
+            if (link) {
+                window.location.href = link.href;
+            }
+        }
+
+        // 为所有文件项添加点击事件
+        document.addEventListener('click', handleGridItemClick);
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alertContainer.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        function openUploadModal() {
+            document.getElementById('uploadModal').classList.add('active');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.remove('active');
+            document.getElementById('uploadForm').reset();
+        }
+
+        function openMkdirModal() {
+            document.getElementById('mkdirModal').classList.add('active');
+        }
+
+        function closeMkdirModal() {
+            document.getElementById('mkdirModal').classList.remove('active');
+            document.getElementById('mkdirForm').reset();
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const file = document.getElementById('fileInput').files[0];
+            console.log('=== 开始上传文件 ===');
+            console.log('文件名:', file.name);
+            console.log('文件大小:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+            console.log('开始时间:', new Date().toLocaleTimeString());
+
+            const uploadStartTime = performance.now();
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('path', currentPath);
+
+            try {
+                const response = await fetch(`${sitePrefix}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const uploadEndTime = performance.now();
+                const uploadDuration = ((uploadEndTime - uploadStartTime) / 1000).toFixed(2);
+
+                console.log('上传完成时间:', new Date().toLocaleTimeString());
+                console.log('总耗时:', uploadDuration, '秒');
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 显示诊断信息
+                    if (result.diagnostics) {
+                        const diag = result.diagnostics;
+                        console.log('=== 服务器性能诊断 ===');
+                        console.log('文件大小:', diag.fileSize);
+                        console.log('服务器接收耗时:', diag.receiveTime);
+                        console.log('磁盘写入耗时:', diag.writeTime);
+                        console.log('服务器总耗时:', diag.totalTime);
+                        console.log('写入速度:', diag.writeSpeed);
+                        console.log('客户端总耗时:', uploadDuration, '秒');
+                        console.log('====================');
+
+                        showAlert(`${result.message}\n查看浏览器控制台(F12)获取详细性能数据`, 'success');
+                    } else {
+                        console.log('上传成功:', result.message);
+                        showAlert(result.message, 'success');
+                    }
+                    closeUploadModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    console.error('上传失败:', result.message);
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                console.error('上传错误:', error);
+                showAlert('上传失败: ' + error.message, 'error');
+            }
+        });
+
+        document.getElementById('mkdirForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('dirname', document.getElementById('dirNameInput').value);
+            formData.append('path', currentPath);
+
+            try {
+                const response = await fetch(`${sitePrefix}/mkdir`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    closeMkdirModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('创建失败: ' + error.message, 'error');
+            }
+        });
+
+        async function deleteItem(path, name) {
+            if (!confirm(`确定要删除 "${name}" 吗？`)) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('path', path);
+
+            try {
+                const response = await fetch(`${sitePrefix}/delete`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('删除失败: ' + error.message, 'error');
+            }
+        }
+
+        function openRenameModal(path, currentName) {
+            document.getElementById('newNameInput').value = currentName;
+            document.getElementById('renamePathInput').value = path;
+            document.getElementById('renameModal').classList.add('active');
+            document.getElementById('newNameInput').focus();
+            document.getElementById('newNameInput').select();
+        }
+
+        function closeRenameModal() {
+            document.getElementById('renameModal').classList.remove('active');
+            document.getElementById('renameForm').reset();
+        }
+
+        document.getElementById('renameForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('path', document.getElementById('renamePathInput').value);
+            formData.append('new_name', document.getElementById('newNameInput').value);
+
+            try {
+                const response = await fetch(`${sitePrefix}/rename`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    closeRenameModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('重命名失败: ' + error.message, 'error');
+            }
+        });
+
+        // 点击模态框外部关闭
+        document.getElementById('uploadModal').addEventListener('click', (e) => {
+            if (e.target.id === 'uploadModal') {
+                closeUploadModal();
+            }
+        });
+
+        document.getElementById('mkdirModal').addEventListener('click', (e) => {
+            if (e.target.id === 'mkdirModal') {
+                closeMkdirModal();
+            }
+        });
+
+        document.getElementById('renameModal').addEventListener('click', (e) => {
+            if (e.target.id === 'renameModal') {
+                closeRenameModal();
+            }
+        });
+    </script>
+</body>
+</html>

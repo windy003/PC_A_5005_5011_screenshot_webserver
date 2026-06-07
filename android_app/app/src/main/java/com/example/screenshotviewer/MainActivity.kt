@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,12 @@ import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        /** 小部件点击时传入，指定要打开的标签页：0 = small，1 = large。 */
+        const val EXTRA_OPEN_SLOT = "open_slot"
+    }
+
+    private lateinit var configTabLayout: TabLayout
     private lateinit var serverUrlInput: TextInputEditText
     private lateinit var usernameInput: TextInputEditText
     private lateinit var passwordInput: TextInputEditText
@@ -46,9 +53,15 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var sharedPreferences: SharedPreferences
 
-    private var baseUrl = ""
+    private var baseUrl = ""          // 含站点前缀，例如 http://host:5005/small
+    private var originUrl = ""        // 仅 协议+主机+端口，例如 http://host:5005（登录用）
+    private var siteKey = ""          // 站点标识，例如 small / large
+    private var subPath = ""          // browse 之后的子路径，例如 releasing
     private var currentImages = mutableListOf<FileItem>()
     private var sortDescending = false
+
+    private var currentSlot = 0       // 当前标签页：0 = small，1 = large
+    private val slotTitles = listOf("small", "large")
 
     private val STORAGE_PERMISSION_CODE = 100
     private val PREFS_NAME = "ScreenshotViewerPrefs"
@@ -65,18 +78,36 @@ class MainActivity : AppCompatActivity() {
         sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         initViews()
+        setupTabs()
         loadSavedCredentials()
         setupRecyclerView()
         setupListeners()
+        setupTabListener()
         requestStoragePermission()
 
-        // 如果启用了自动登录，则自动连接
-        if (autoLoginCheckbox.isChecked) {
+        // 处理来自小部件的「打开指定标签页」请求：
+        //   large 小部件 -> 选中 large 标签（会触发 switchSlot，内部按需自动登录）
+        //   small / 无指定 -> 走默认的自动登录逻辑
+        val openSlot = intent.getIntExtra(EXTRA_OPEN_SLOT, -1)
+        if (openSlot == 1) {
+            configTabLayout.getTabAt(1)?.select()
+        } else if (autoLoginCheckbox.isChecked) {
             autoLogin()
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // App 已在运行时再次从小部件点击进入：切换到对应标签页
+        val slot = intent.getIntExtra(EXTRA_OPEN_SLOT, -1)
+        if (slot in 0..1) {
+            configTabLayout.getTabAt(slot)?.select()
+        }
+    }
+
     private fun initViews() {
+        configTabLayout = findViewById(R.id.configTabLayout)
         serverUrlInput = findViewById(R.id.serverUrlInput)
         usernameInput = findViewById(R.id.usernameInput)
         passwordInput = findViewById(R.id.passwordInput)
@@ -88,41 +119,91 @@ class MainActivity : AppCompatActivity() {
         imagesRecyclerView = findViewById(R.id.imagesRecyclerView)
     }
 
-    private fun loadSavedCredentials() {
-        // 加载保存的服务器地址和用户名（总是加载）
-        val savedUrl = sharedPreferences.getString(KEY_SERVER_URL, "http://192.168.1.100:5000")
-        val savedUsername = sharedPreferences.getString(KEY_USERNAME, "admin")
-        val rememberPassword = sharedPreferences.getBoolean(KEY_REMEMBER_PASSWORD, true)
-        val autoLogin = sharedPreferences.getBoolean(KEY_AUTO_LOGIN, false)
+    // ===== 标签页（small / large 两套配置） =====
 
-        serverUrlInput.setText(savedUrl)
-        usernameInput.setText(savedUsername)
-        rememberPasswordCheckbox.isChecked = rememberPassword
-        autoLoginCheckbox.isChecked = autoLogin
+    private fun setupTabs() {
+        configTabLayout.addTab(configTabLayout.newTab().setText(slotTitles[0]))
+        configTabLayout.addTab(configTabLayout.newTab().setText(slotTitles[1]))
+    }
 
-        // 如果记住密码，则加载密码
-        if (rememberPassword) {
-            val savedPassword = sharedPreferences.getString(KEY_PASSWORD, "admin123")
-            passwordInput.setText(savedPassword)
+    private fun setupTabListener() {
+        configTabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                switchSlot(tab.position)
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
+    }
+
+    private fun switchSlot(slot: Int) {
+        if (slot == currentSlot) return
+        // 先保存当前标签页正在编辑的内容
+        saveInputsToSlot(currentSlot)
+        currentSlot = slot
+        loadSlot(slot)
+
+        // 清空当前显示的图片列表
+        currentImages.clear()
+        imageAdapter.updateImages(currentImages)
+        sortButton.visibility = View.GONE
+
+        // 若启用自动登录且字段齐全，则自动连接该标签页
+        if (autoLoginCheckbox.isChecked) {
+            autoLogin()
         }
+    }
+
+    // 每个标签页用独立的 key；slot 0 沿用旧 key（兼容老配置）
+    private fun urlKey(slot: Int) = if (slot == 0) KEY_SERVER_URL else "${KEY_SERVER_URL}_$slot"
+    private fun userKey(slot: Int) = if (slot == 0) KEY_USERNAME else "${KEY_USERNAME}_$slot"
+    private fun passKey(slot: Int) = if (slot == 0) KEY_PASSWORD else "${KEY_PASSWORD}_$slot"
+
+    private fun defaultUrlFor(slot: Int) = if (slot == 0)
+        "http://192.168.1.100:5005/small/browse/releasing"
+    else
+        "http://192.168.1.100:5005/large/browse/releasing"
+
+    private fun loadSlot(slot: Int) {
+        serverUrlInput.setText(sharedPreferences.getString(urlKey(slot), defaultUrlFor(slot)))
+        usernameInput.setText(sharedPreferences.getString(userKey(slot), "admin"))
+        if (rememberPasswordCheckbox.isChecked) {
+            passwordInput.setText(sharedPreferences.getString(passKey(slot), "admin123"))
+        } else {
+            passwordInput.setText("")
+        }
+    }
+
+    private fun saveInputsToSlot(slot: Int) {
+        val editor = sharedPreferences.edit()
+        editor.putString(urlKey(slot), serverUrlInput.text.toString())
+        editor.putString(userKey(slot), usernameInput.text.toString())
+        if (rememberPasswordCheckbox.isChecked) {
+            editor.putString(passKey(slot), passwordInput.text.toString())
+        }
+        editor.apply()
+    }
+
+    private fun loadSavedCredentials() {
+        // 全局开关（两个标签页共用）
+        rememberPasswordCheckbox.isChecked = sharedPreferences.getBoolean(KEY_REMEMBER_PASSWORD, true)
+        autoLoginCheckbox.isChecked = sharedPreferences.getBoolean(KEY_AUTO_LOGIN, false)
+        // 默认加载第一个标签页（small）
+        loadSlot(0)
     }
 
     private fun saveCredentials() {
         val editor = sharedPreferences.edit()
-
-        // 总是保存服务器地址和用户名
-        editor.putString(KEY_SERVER_URL, serverUrlInput.text.toString())
-        editor.putString(KEY_USERNAME, usernameInput.text.toString())
+        // 保存当前标签页的配置
+        editor.putString(urlKey(currentSlot), serverUrlInput.text.toString())
+        editor.putString(userKey(currentSlot), usernameInput.text.toString())
         editor.putBoolean(KEY_REMEMBER_PASSWORD, rememberPasswordCheckbox.isChecked)
         editor.putBoolean(KEY_AUTO_LOGIN, autoLoginCheckbox.isChecked)
-
-        // 只有在勾选了"记住密码"时才保存密码
         if (rememberPasswordCheckbox.isChecked) {
-            editor.putString(KEY_PASSWORD, passwordInput.text.toString())
+            editor.putString(passKey(currentSlot), passwordInput.text.toString())
         } else {
-            editor.remove(KEY_PASSWORD)
+            editor.remove(passKey(currentSlot))
         }
-
         editor.apply()
     }
 
@@ -132,9 +213,44 @@ class MainActivity : AppCompatActivity() {
         val password = passwordInput.text.toString().trim()
 
         if (url.isNotEmpty() && username.isNotEmpty() && password.isNotEmpty()) {
-            baseUrl = url.removeSuffix("/")
-            loginAndLoadImages(username, password)
+            if (parseTargetUrl(url)) {
+                loginAndLoadImages(username, password)
+            }
         }
+    }
+
+    /**
+     * 解析用户输入的完整地址，例如：
+     *   http://127.0.0.1:5005/small/browse/releasing
+     * 得到：
+     *   originUrl = http://127.0.0.1:5005   （登录用，/login 是全局路由）
+     *   siteKey   = small
+     *   subPath   = releasing               （保持原始编码，不做 decode）
+     *   baseUrl   = http://127.0.0.1:5005/small
+     * 返回是否解析成功。
+     */
+    private fun parseTargetUrl(raw: String): Boolean {
+        val input = raw.trim()
+        val schemeIdx = input.indexOf("://")
+        if (schemeIdx == -1) return false
+
+        val afterScheme = input.substring(schemeIdx + 3)
+        val firstSlash = afterScheme.indexOf('/')
+        if (firstSlash == -1) return false   // 只有 origin，缺少站点
+
+        originUrl = input.substring(0, schemeIdx + 3 + firstSlash).trimEnd('/')
+        val pathPart = afterScheme.substring(firstSlash + 1)
+        val segs = pathPart.split("/").filter { it.isNotEmpty() }
+        if (segs.isEmpty()) return false
+
+        siteKey = segs[0]
+        subPath = if (segs.size >= 2 && segs[1] == "browse") {
+            segs.drop(2).joinToString("/")          // /site/browse/<subPath>
+        } else {
+            segs.drop(1).joinToString("/")          // /site/<subPath>（容错）
+        }
+        baseUrl = "$originUrl/$siteKey"
+        return true
     }
 
     private fun setupRecyclerView() {
@@ -160,7 +276,11 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            baseUrl = url.removeSuffix("/")
+            if (!parseTargetUrl(url)) {
+                Toast.makeText(this, "地址格式不正确，应类似 http://IP:5005/small/browse/releasing", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
             loginAndLoadImages(username, password)
         }
 
@@ -188,8 +308,8 @@ class MainActivity : AppCompatActivity() {
             try {
                 showLoading(true)
 
-                // Login
-                val apiService = RetrofitClient.getClient(baseUrl + "/")
+                // 登录走 origin（/login 是全局路由，不带站点前缀）
+                val apiService = RetrofitClient.getClient(originUrl + "/")
                 val loginResponse = apiService.login(username, password)
 
                 if (loginResponse.isSuccessful) {
@@ -198,10 +318,10 @@ class MainActivity : AppCompatActivity() {
                     // 保存凭据
                     saveCredentials()
 
-                    // 重新创建adapter，使用正确的baseUrl
+                    // 重新创建adapter，使用含站点前缀的 baseUrl
                     setupRecyclerView()
 
-                    loadImages()
+                    loadImages(subPath)
                 } else {
                     Toast.makeText(this@MainActivity, "登录失败", Toast.LENGTH_SHORT).show()
                 }
@@ -213,9 +333,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun loadImages(path: String = "") {
+    private suspend fun loadImages(path: String = subPath) {
         withContext(Dispatchers.IO) {
             try {
+                // baseUrl 含站点前缀，browse/<path> 即 /<site>/browse/<path>
                 val apiService = RetrofitClient.getClient(baseUrl + "/")
                 val response = apiService.browseDirectory(path)
 
@@ -254,7 +375,9 @@ class MainActivity : AppCompatActivity() {
         try {
             // 从 HTML 中提取图片信息
             // 查找所有 data-type="image" 的 div
-            val pattern = """<div class="file-item" data-type="image">.*?src="/stream/([^"]+)".*?<a href="/view/[^"]+">([^<]+)</a>.*?<div class="file-size">([^<]+)</div>""".toRegex(RegexOption.DOT_MATCHES_ALL)
+            // 合并版服务器的链接带站点前缀：/<site>/stream/... 与 /<site>/view/...
+            // 用 /[^/]+/ 跳过站点段，捕获 stream 之后的相对路径（保持原始编码）
+            val pattern = """<div class="file-item" data-type="image">.*?src="/[^/]+/stream/([^"]+)".*?<a href="/[^/]+/view/[^"]+">([^<]+)</a>.*?<div class="file-size">([^<]+)</div>""".toRegex(RegexOption.DOT_MATCHES_ALL)
 
             pattern.findAll(html).forEach { matchResult ->
                 try {

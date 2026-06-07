@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="3dp">
+
+    <!-- 第一行：自定义名称（橙色） -->
+    <TextView
+        android:id="@+id/widget_name"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:includeFontPadding="false"
+        android:layout_marginTop="1dp"
+        android:layout_marginBottom="1dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp"
+        android:textColor="@color/widget_orange"
+        android:textStyle="bold"
+        android:textSize="6sp"
+        android:text="名称" />
+
+    <!-- 第二行：X个（X 红色，个 绿色） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:baselineAligned="true"
+        android:layout_marginTop="1dp"
+        android:layout_marginBottom="1dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
+
+        <TextView
+            android:id="@+id/widget_count_num"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_red"
+            android:textStyle="bold"
+            android:textSize="6sp"
+            android:text="0" />
+
+        <TextView
+            android:id="@+id/widget_count_unit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_green"
+            android:textStyle="bold"
+            android:textSize="6sp"
+            android:text="@string/widget_unit" />
+    </LinearLayout>
+
+    <!-- 第三行：xx:xx前（xx:xx 红色，前 蓝色） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:baselineAligned="true"
+        android:layout_marginTop="1dp"
+        android:layout_marginBottom="1dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
+
+        <Chronometer
+            android:id="@+id/widget_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_red"
+            android:textStyle="bold"
+            android:textSize="6sp" />
+
+        <TextView
+            android:id="@+id/widget_time_suffix"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:includeFontPadding="false"
+            android:textColor="@color/widget_blue"
+            android:textStyle="bold"
+            android:textSize="6sp"
+            android:text="@string/widget_ago" />
+    </LinearLayout>
+
+</LinearLayout>
