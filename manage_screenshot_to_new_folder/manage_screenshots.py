@@ -2,12 +2,13 @@
 """
 图片定时流转脚本
 
-流水线（以"文件修改时间 mtime"为时间基准）：
-  1. 每天 8:00，从 Source_Folder1 / Source_Folder2 中筛出"距 8:00 的 mtime 在 3~4 天"的图片
-     -> 移到 3-4days 文件夹
-  2. 统计 3-4days 中的文件数 N，把 8:00~16:00（共 8 小时）平均分成 N 份，间隔 = 8 小时 / N
-  3. 按 mtime 先后顺序，每隔（8/N 小时）把 3-4days 中的图片逐个移到 Releasing
+流水线（以"文件修改时间 mtime"为时间基准，每个源文件夹独立处理）：
+  1. 每天 8:00，从各 Source_Folder 中筛出"距 8:00 的 mtime 在 3~4 天"的图片
+     -> 移到 该源文件夹下的 3-4days 子文件夹
+  2. 统计该源 3-4days 中的文件数 N，把 8:00~16:00（共 8 小时）平均分成 N 份，间隔 = 8 小时 / N
+  3. 按 mtime 先后顺序，每隔（8/N 小时）把图片移到 该源文件夹下的 Releasing 子文件夹
 
+注意：3-4days / Releasing 都生成在各自的 Source_Folder 内，而不是本项目目录。
 进程常驻自调度；发布计划写入 state.json，进程重启后可恢复。
 """
 
@@ -33,9 +34,11 @@ except ImportError:
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-# 目标文件夹（创建在脚本所在目录下）
-RANGE_DIR = BASE_DIR / "3-4days"
-RELEASING_DIR = BASE_DIR / "Releasing"
+# 每个源文件夹下生成的两个子文件夹名
+RANGE_SUBDIR = "3-4days"
+RELEASING_SUBDIR = "Releasing"
+
+# 状态与日志仍放在本项目目录（它们是运行元数据，不是流转产物）
 STATE_FILE = BASE_DIR / "state.json"
 LOG_FILE = BASE_DIR / "manage_screenshots.log"
 
@@ -97,6 +100,16 @@ def file_mtime(path: Path) -> datetime:
     return datetime.fromtimestamp(path.stat().st_mtime)
 
 
+def range_dir(source: Path) -> Path:
+    """该源文件夹下的 3-4days 子目录"""
+    return source / RANGE_SUBDIR
+
+
+def releasing_dir(source: Path) -> Path:
+    """该源文件夹下的 Releasing 子目录"""
+    return source / RELEASING_SUBDIR
+
+
 def unique_dest(dest_dir: Path, name: str) -> Path:
     """目标目录已存在同名文件时，追加 _1 / _2 ... 避免覆盖。"""
     dest = dest_dir / name
@@ -125,8 +138,11 @@ def safe_move(src: Path, dest_dir: Path) -> Path | None:
 
 
 def ensure_dirs():
-    for d in (RANGE_DIR, RELEASING_DIR):
-        d.mkdir(parents=True, exist_ok=True)
+    """在每个存在的源文件夹下创建 3-4days / Releasing 子目录"""
+    for source in SOURCE_FOLDERS:
+        if source.exists():
+            range_dir(source).mkdir(parents=True, exist_ok=True)
+            releasing_dir(source).mkdir(parents=True, exist_ok=True)
 
 
 # ----------------------------------------------------------------------------
@@ -151,50 +167,56 @@ def save_state(state: dict):
 
 
 # ----------------------------------------------------------------------------
-# 步骤 1 + 2：每天 8:00，Source -> 3-4days，并排定发布计划
+# 步骤 1 + 2：每天 8:00，各源 -> 各源/3-4days，并排定发布计划
 # ----------------------------------------------------------------------------
 def run_daily(now: datetime, state: dict):
     run_time = now.replace(hour=DAILY_HOUR, minute=DAILY_MINUTE, second=0, microsecond=0)
-
-    # 1) 从源文件夹筛出 mtime 距 run_time 在 [3, 4) 天的图片，移到 3-4days
     lo = timedelta(days=RANGE_MIN_DAYS)
     hi = timedelta(days=RANGE_MAX_DAYS)
-    moved = 0
-    for folder in SOURCE_FOLDERS:
-        if not folder.exists():
-            log.warning("源文件夹不存在，跳过: %s", folder)
+
+    pending = []
+    for source in SOURCE_FOLDERS:
+        if not source.exists():
+            log.warning("源文件夹不存在，跳过: %s", source)
             continue
-        for path in list(folder.iterdir()):
+
+        rdir = range_dir(source)
+        rdir.mkdir(parents=True, exist_ok=True)
+
+        # 1) 从源文件夹顶层筛出 mtime 距 run_time 在 [3, 4) 天的图片，移到 该源/3-4days
+        moved = 0
+        for path in list(source.iterdir()):
             if not is_image(path):
                 continue
             age = run_time - file_mtime(path)
             if lo <= age < hi:
-                if safe_move(path, RANGE_DIR):
+                if safe_move(path, rdir):
                     moved += 1
-    log.info("每日筛选: %d 张图片移入 3-4days", moved)
+        log.info("[%s] 每日筛选: %d 张图片移入 %s", source.name, moved, RANGE_SUBDIR)
 
-    # 2) 统计 3-4days，按 mtime 升序排定 8:00~16:00 的发布时间表
-    files = sorted([p for p in RANGE_DIR.iterdir() if is_image(p)], key=lambda p: p.stat().st_mtime)
-    n = len(files)
-    if n == 0:
-        log.info("3-4days 为空，本日无发布计划")
-        state["pending_releases"] = []
-        return
+        # 2) 统计该源 3-4days，按 mtime 升序排定 8:00~16:00 的发布时间表
+        files = sorted([p for p in rdir.iterdir() if is_image(p)], key=lambda p: p.stat().st_mtime)
+        n = len(files)
+        if n == 0:
+            log.info("[%s] %s 为空，本日无发布计划", source.name, RANGE_SUBDIR)
+            continue
 
-    interval_hours = RELEASE_WINDOW_HOURS / n
-    log.info("3-4days 共 %d 张，发布间隔 = %.4f 小时（%.1f 分钟）",
-             n, interval_hours, interval_hours * 60)
+        interval_hours = RELEASE_WINDOW_HOURS / n
+        log.info("[%s] %s 共 %d 张，发布间隔 = %.4f 小时（%.1f 分钟）",
+                 source.name, RANGE_SUBDIR, n, interval_hours, interval_hours * 60)
 
-    pending = []
-    for i, path in enumerate(files):
-        due = run_time + timedelta(hours=interval_hours * i)
-        pending.append({"filename": path.name, "due": due.isoformat()})
+        for i, path in enumerate(files):
+            due = run_time + timedelta(hours=interval_hours * i)
+            pending.append({"source": str(source), "filename": path.name, "due": due.isoformat()})
+
     state["pending_releases"] = pending
-    log.info("已排定发布计划：%s ~ %s", pending[0]["due"], pending[-1]["due"])
+    if pending:
+        log.info("已排定发布计划：共 %d 个文件，%s ~ %s",
+                 len(pending), pending[0]["due"], pending[-1]["due"])
 
 
 # ----------------------------------------------------------------------------
-# 步骤 3：到点把 3-4days 中的图片移到 Releasing
+# 步骤 3：到点把 各源/3-4days 中的图片移到 各源/Releasing
 # ----------------------------------------------------------------------------
 def process_releases(now: datetime, state: dict):
     pending = state.get("pending_releases", [])
@@ -202,17 +224,22 @@ def process_releases(now: datetime, state: dict):
         return
     remaining = []
     for item in pending:
+        source_str = item.get("source")
+        if not source_str:
+            # 旧版本遗留的计划（无 source 字段），丢弃
+            continue
         try:
             due = datetime.fromisoformat(item["due"])
         except Exception:
             continue
         if due <= now:
-            src = RANGE_DIR / item["filename"]
+            source = Path(source_str)
+            src = range_dir(source) / item["filename"]
             if src.exists():
-                log.info("到点发布 -> Releasing: %s", item["filename"])
-                safe_move(src, RELEASING_DIR)
+                log.info("[%s] 到点发布 -> %s: %s", source.name, RELEASING_SUBDIR, item["filename"])
+                safe_move(src, releasing_dir(source))
             else:
-                log.warning("待发布文件已不存在，跳过: %s", item["filename"])
+                log.warning("[%s] 待发布文件已不存在，跳过: %s", source.name, item["filename"])
         else:
             remaining.append(item)
     if len(remaining) != len(pending):
@@ -226,6 +253,7 @@ def main():
     log.info("=" * 60)
     log.info("图片定时流转脚本启动")
     log.info("源文件夹: %s", [str(p) for p in SOURCE_FOLDERS] or "(未配置！请编辑 .env)")
+    log.info("3-4days / Releasing 将生成在各源文件夹内")
     log.info("每天 %02d:%02d 筛选 mtime 在 %.1f~%.1f 天的图片，%.1f 小时内均匀发布",
              DAILY_HOUR, DAILY_MINUTE, RANGE_MIN_DAYS, RANGE_MAX_DAYS, RELEASE_WINDOW_HOURS)
     log.info("轮询间隔 %d 秒", POLL_INTERVAL)

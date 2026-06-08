@@ -4,3 +4,7 @@
 android_app/app/build/
 android_app/.gradle/
 android_app/.idea/
+manage_screenshot_to_new_folder/__pycache__/
+manage_screenshot_to_new_folder/state.json
+manage_screenshot_to_new_folder/manage_screenshots.log
+android_app/build/
